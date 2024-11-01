@@ -1,0 +1,5 @@
+source 'https://rubygems.org'
+
+gem 'os'
+#gem 'a gem que vc quiser usar'
+gem 'Faker'
