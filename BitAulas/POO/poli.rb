@@ -8,6 +8,12 @@ class Objeto
   end
 end
 
+class Objeto2
+  def digitar
+    puts 'digitando '
+  end
+end
+
 class Lapis < Objeto
     def escrever
         puts 'Escrevendo à lápis '
@@ -20,7 +26,7 @@ class Caneta < Objeto
       end
 end
  
-class Teclado < Objeto
+class Teclado < Objeto2
     
 end
 
@@ -33,6 +39,6 @@ lapis.escrever
 puts 'Caneta:'
 caneta.escrever
 puts 'Teclado:'
-teclado.escrever
+teclado.digitar
 
 
