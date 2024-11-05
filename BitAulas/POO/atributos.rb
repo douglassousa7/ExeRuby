@@ -19,17 +19,38 @@
 #ruby disponibiliza um método chamado attr_accessor que cria os 
 # métodos var e var= para todos atributos declarados.
 
-class Aluno 
-  attr_accessor :nome, :idade, :cidade
- end
+# class Aluno 
+#   attr_accessor :nome, :idade, :cidade
+#  end
   
   
-aluno = Aluno.new 
-aluno.nome = 'Tenille'
-puts aluno.nome
+# aluno = Aluno.new 
+# aluno.nome = 'Tenille'
+# puts aluno.nome
   
-aluno.idade = '36 anos'
-puts aluno.idade
+# aluno.idade = '36 anos'
+# puts aluno.idade
 
-aluno.cidade = 'São Paulo'
-puts aluno.cidade
+# aluno.cidade = 'São Paulo'
+# puts aluno.cidade
+
+
+#minha versão de teste abaixo:
+
+class Jogador
+  attr_accessor :nome, :idade, :posicao, :ex_time
+ end
+
+jogador = Jogador.new
+jogador.nome = 'Messi'
+puts jogador.nome 
+
+jogador.idade = '39 anos'
+puts jogador.idade
+
+jogador.posicao = 'Atacante'
+puts jogador.posicao
+
+jogador.ex_time = 'PSG'
+print "ex time ", jogador.ex_time 
+puts "   "
