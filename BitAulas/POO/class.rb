@@ -1,3 +1,18 @@
+#Globais: Pode ser acessad de qualquer lugar do pŕograma.
+#Forma: Use o prefixo $ 
+# USO DESENCORAJADA 
+
+
+
+#CLASSE: Pode ser acessada de qualquer lugar da classe
+#FORMa: @ 
+
+
+#INSTANCIA: Semelhante a de classe
+#Forma: @
+
+#teste visionamento 
+
 class Usuario
   @@usuario_count = 0
   def add(name)
@@ -12,3 +27,4 @@ class Usuario
   
  second_user = Usuario.new
  second_user.add('Paulo')
+
