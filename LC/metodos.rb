@@ -4,4 +4,10 @@ def numero_impares(min, max)
   end
 end 
 
-numero_impares(80,90)
+def media(elementos)
+  elementos.sum / elementos.size 
+end
+
+#numero_impares(80,90)
+puts media ([9, 1, 2])
+puts media ([10, 20])
