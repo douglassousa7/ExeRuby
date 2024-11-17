@@ -7,3 +7,4 @@ if nome && idade
 else
   puts "Por favor, forneça seu nome e idade ao rodar o programa."
 end
+
