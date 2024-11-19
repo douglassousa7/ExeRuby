@@ -73,3 +73,30 @@ end
 
 pessoa = Pessoa.new("Douglas")
 puts pessoa.nome # Saída: Douglas
+
+
+
+# ex 5
+
+#Criados para alterar o valor de uma variável de instância.
+#Exemplo:
+
+
+class Pessoa
+  def initialize(nome)
+    @nome = nome
+  end
+
+  def alterar_nome(novo_nome)
+    @nome = novo_nome
+  end
+
+  def nome
+    @nome
+  end
+end
+
+pessoa = Pessoa.new("Douglas")
+pessoa.alterar_nome("Carlos")
+puts pessoa.nome # Saída: Carlos
+
