@@ -7,7 +7,7 @@ class Tempo
 # na mesma classe, sem problemas
 
   def alguma_coisa
-    puts "funionando"
+    puts "funcionando"
   end
 end
 
