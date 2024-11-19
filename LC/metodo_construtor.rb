@@ -38,21 +38,38 @@
 # ex 3
 
 
-class Contador
-  def initialize
-    @contagem = 0
+# class Contador
+#   def initialize
+#     @contagem = 0
+#   end
+
+#   def incrementar
+#     @contagem += 1
+#   end
+
+#   def mostrar
+#     puts "Contagem atual: #{@contagem}"
+#   end
+# end
+
+# contador = Contador.new
+# contador.incrementar
+# contador.mostrar # Saída: Contagem atual: 1
+
+
+
+#exe 4
+
+
+class Pessoa
+  def initialize(nome)
+    @nome = nome
   end
 
-  def incrementar
-    @contagem += 1
-  end
-
-  def mostrar
-    puts "Contagem atual: #{@contagem}"
+  def nome
+    @nome
   end
 end
 
-contador = Contador.new
-contador.incrementar
-contador.mostrar # Saída: Contagem atual: 1
-
+pessoa = Pessoa.new("Douglas")
+puts pessoa.nome # Saída: Douglas
