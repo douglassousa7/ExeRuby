@@ -61,18 +61,18 @@
 #exe 4
 
 
-class Pessoa
-  def initialize(nome)
-    @nome = nome
-  end
+# class Pessoa
+#   def initialize(nome)
+#     @nome = nome
+#   end
 
-  def nome
-    @nome
-  end
-end
+#   def nome
+#     @nome
+#   end
+# end
 
-pessoa = Pessoa.new("Douglas")
-puts pessoa.nome # Saída: Douglas
+# pessoa = Pessoa.new("Douglas")
+# puts pessoa.nome # Saída: Douglas
 
 
 
@@ -82,21 +82,41 @@ puts pessoa.nome # Saída: Douglas
 #Exemplo:
 
 
+# class Pessoa
+#   def initialize(nome)
+#     @nome = nome
+#   end
+
+#   def alterar_nome(novo_nome)
+#     @nome = novo_nome
+#   end
+
+#   def nome
+#     @nome
+#   end
+# end
+
+# pessoa = Pessoa.new("Douglas")
+# pessoa.alterar_nome("Carlos")
+# puts pessoa.nome # Saída: Carlos
+
+
+
+# ex 6
+# Uso de attr_accessor, attr_reader e attr_writer:
+
+# Atalhos para criar métodos de leitura e escrita.
+# Exemplo com attr_accessor
+
 class Pessoa
+  attr_accessor :nome
+
   def initialize(nome)
     @nome = nome
-  end
-
-  def alterar_nome(novo_nome)
-    @nome = novo_nome
-  end
-
-  def nome
-    @nome
   end
 end
 
 pessoa = Pessoa.new("Douglas")
-pessoa.alterar_nome("Carlos")
+puts pessoa.nome # Saída: Douglas
+pessoa.nome = "Carlos"
 puts pessoa.nome # Saída: Carlos
-
