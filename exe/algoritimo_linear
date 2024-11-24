@@ -1,0 +1,38 @@
+# def encontrar_indice(arr, x)
+#   # Percorrendo cada elemento do array
+#   arr.each_with_index do |elemento, indice|
+#     # Verificando se o elemento é igual ao que estamos procurando
+#     if elemento == x
+#       return indice  # Retorna o índice da primeira ocorrência
+#     end
+#   end
+#   return -1  # Se não encontrar o elemento, retorna -1
+# end
+# #chatt gpt
+
+
+def buscar(arr, x)
+  # Percorrendo cada elemento do array
+  arr.each_with_index do |elemento, indice|
+    # Verificando se o elemento é igual ao que estamos procurando
+    if elemento == x
+      return indice  # Retorna o índice da primeira ocorrência
+    end
+  end
+  return -1  # Se não encontrar o elemento, retorna -1
+end
+
+# Código para testar a função
+arr = [2, 3, 4, 10, 40]
+x = 19
+
+# Chama a função de busca
+resultado = buscar(arr, x)
+
+# Verifica o resultado e imprime a mensagem apropriada
+if resultado == -1
+  puts "Elemento não encontrado no array"
+else
+  puts "Elemento encontrado no índice #{resultado}"
+end
+
