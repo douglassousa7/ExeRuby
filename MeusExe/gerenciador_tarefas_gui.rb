@@ -4,12 +4,21 @@ ARQUIVO_TAREFAS = "tarefas.txt"
 
 # Função para carregar as tarefas do arquivo
 def carregar_tarefas
-  File.exist?(ARQUIVO_TAREFAS) ? File.read(ARQUIVO_TAREFAS).split("\n") : []
+  begin
+    File.exist?(ARQUIVO_TAREFAS) ? File.read(ARQUIVO_TAREFAS).split("\n") : []
+  rescue => e
+    puts "Erro ao carregar tarefas: #{e.message}"
+    []
+  end
 end
 
 # Função para salvar as tarefas no arquivo
 def salvar_tarefas(tarefas)
-  File.open(ARQUIVO_TAREFAS, "w") { |file| tarefas.each { |tarefa| file.puts(tarefa) } }
+  begin
+    File.open(ARQUIVO_TAREFAS, "w") { |file| tarefas.each { |tarefa| file.puts(tarefa) } }
+  rescue => e
+    puts "Erro ao salvar tarefas: #{e.message}"
+  end
 end
 
 # Criar janela principal
@@ -37,6 +46,11 @@ renderer = Gtk::CellRendererText.new
 coluna = Gtk::TreeViewColumn.new("Tarefas", renderer, text: 0)
 lista_tarefas.append_column(coluna)
 
+# Adicionar Scroll à lista de tarefas
+scrolled_window = Gtk::ScrolledWindow.new
+scrolled_window.set_policy(:automatic, :automatic) # Barras de rolagem automáticas
+scrolled_window.add(lista_tarefas)
+
 # Botão para remover tarefa
 botao_remover = Gtk::Button.new(label: "Remover Selecionada")
 
@@ -61,16 +75,25 @@ botao_remover.signal_connect("clicked") do
   selecionado = lista_tarefas.selection.selected
   if selecionado
     tarefa = selecionado[0]
-    modelo_lista.remove(selecionado)
-    tarefas.delete(tarefa)
-    salvar_tarefas(tarefas)
+    dialog = Gtk::MessageDialog.new(parent: janela,
+                                    flags: :modal,
+                                    type: :question,
+                                    buttons: :yes_no,
+                                    message: "Tem certeza que deseja remover a tarefa: #{tarefa}?")
+    resposta = dialog.run
+    if resposta == Gtk::ResponseType::YES
+      modelo_lista.remove(selecionado)
+      tarefas.delete(tarefa)
+      salvar_tarefas(tarefas)
+    end
+    dialog.destroy
   end
 end
 
 # Adicionar widgets ao layout
 caixa.pack_start(entrada, expand: false, fill: false, padding: 5)
 caixa.pack_start(botao_adicionar, expand: false, fill: false, padding: 5)
-caixa.pack_start(lista_tarefas, expand: true, fill: true, padding: 5)
+caixa.pack_start(scrolled_window, expand: true, fill: true, padding: 5)
 caixa.pack_start(botao_remover, expand: false, fill: false, padding: 5)
 
 # Adicionar layout à janela e exibir
