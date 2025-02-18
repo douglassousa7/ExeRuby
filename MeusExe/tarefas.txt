@@ -1,1 +1,2 @@
-Ir ao mercado
+true|Ir ao mercado|18/02/2025 9:00
+true|Ir trabnalhar|18/02/2024 14h
