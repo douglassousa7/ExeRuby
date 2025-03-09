@@ -1,4 +1,6 @@
 require 'gtk3'
+require 'libnotify'
+require 'date'
 
 ARQUIVO_TAREFAS = "tarefas.txt"
 CATEGORIAS = ["Pessoal", "Trabalho", "Estudo", "Compras", "Outro"]
@@ -39,6 +41,21 @@ def salvar_tarefas(tarefas)
   end
 end
 
+# Função para verificar tarefas próximas e exibir notificações
+def verificar_tarefas_proximas(tarefas)
+  hoje = Date.today
+  tarefas.each do |tarefa|
+    data_tarefa = Date.parse(tarefa[:data]) rescue nil
+    if data_tarefa && (data_tarefa - hoje).to_i <= 2 # Notificar se a tarefa estiver próxima (2 dias ou menos)
+      Libnotify.show(
+        summary: "Tarefa Próxima: #{tarefa[:texto]}",
+        body: "Data: #{tarefa[:data]}\nCategoria: #{tarefa[:categoria]}\nPrioridade: #{tarefa[:prioridade]}",
+        timeout: 5 # Tempo em segundos para a notificação desaparecer
+      )
+    end
+  end
+end
+
 # Criar janela principal
 janela = Gtk::Window.new("Gerenciador de Tarefas")
 janela.set_size_request(700, 500)
@@ -63,9 +80,11 @@ end
 entrada = Gtk::Entry.new
 entrada.placeholder_text = "Digite a nova tarefa"
 
-# Campo de entrada para data e hora
-entrada_data = Gtk::Entry.new
-entrada_data.placeholder_text = "Data e Hora (opcional)"
+# Calendário para selecionar data
+calendario = Gtk::Calendar.new
+calendario.show_day_names = true
+calendario.show_heading = true
+calendario.mark_day(Time.now.day) # Marcar o dia atual
 
 # Combobox para categorias
 combo_categoria = Gtk::ComboBoxText.new
@@ -80,7 +99,7 @@ combo_prioridade.active = 1
 # Layout horizontal para o formulário de entrada
 form_box = Gtk::Box.new(:horizontal, 5)
 form_box.pack_start(entrada, expand: true, fill: true, padding: 5)
-form_box.pack_start(entrada_data, expand: false, fill: false, padding: 5)
+form_box.pack_start(calendario, expand: false, fill: false, padding: 5)
 form_box.pack_start(Gtk::Label.new("Categoria:"), expand: false, fill: false, padding: 5)
 form_box.pack_start(combo_categoria, expand: false, fill: false, padding: 5)
 form_box.pack_start(Gtk::Label.new("Prioridade:"), expand: false, fill: false, padding: 5)
@@ -101,15 +120,9 @@ lista_tarefas.append_column(coluna_concluida)
 # Coluna para o texto da tarefa
 renderer_texto = Gtk::CellRendererText.new
 coluna_texto = Gtk::TreeViewColumn.new("Tarefa", renderer_texto)
-# Usar uma função para definir o texto (com possibilidade de estilizar)
 coluna_texto.set_cell_data_func(renderer_texto) do |column, cell, model, iter|
   cell.text = iter[1]
-  # Aplicar estilo de riscado para tarefas concluídas
-  if iter[0] # Se a tarefa estiver concluída
-    cell.strikethrough = true
-  else
-    cell.strikethrough = false
-  end
+  cell.strikethrough = iter[0] # Riscar texto se a tarefa estiver concluída
 end
 lista_tarefas.append_column(coluna_texto)
 
@@ -126,11 +139,9 @@ lista_tarefas.append_column(coluna_categoria)
 # Coluna para a prioridade
 renderer_prioridade = Gtk::CellRendererText.new
 coluna_prioridade = Gtk::TreeViewColumn.new("Prioridade", renderer_prioridade)
-# Usar uma função para definir o texto com cores diferentes por prioridade
 coluna_prioridade.set_cell_data_func(renderer_prioridade) do |column, cell, model, iter|
   prioridade = iter[4]
   cell.text = prioridade
-  
   case prioridade
   when "Alta"
     cell.foreground = "red"
@@ -192,10 +203,15 @@ botao_editar = Gtk::Button.new(label: "Editar Tarefa")
 # Botão para gerar relatório
 botao_relatorio = Gtk::Button.new(label: "Gerar Relatório")
 
+# Botão para escolher a cor do tema
+botao_cor = Gtk::ColorButton.new
+botao_cor.title = "Escolha a cor do tema"
+
 # Adicionar botões ao box
 botoes_box.pack_start(botao_remover, expand: true, fill: true, padding: 5)
 botoes_box.pack_start(botao_editar, expand: true, fill: true, padding: 5)
 botoes_box.pack_start(botao_relatorio, expand: true, fill: true, padding: 5)
+botoes_box.pack_start(botao_cor, expand: true, fill: true, padding: 5)
 
 # Variável para armazenar todas as tarefas
 tarefas = carregar_tarefas
@@ -247,7 +263,8 @@ end
 # Evento para adicionar tarefa
 botao_adicionar.signal_connect("clicked") do
   texto = entrada.text.strip
-  data = entrada_data.text.strip
+  data_selecionada = calendario.date
+  data = "#{data_selecionada.year}-#{data_selecionada.month}-#{data_selecionada.day}"
   categoria = combo_categoria.active_text
   prioridade = combo_prioridade.active_text
   
@@ -255,7 +272,7 @@ botao_adicionar.signal_connect("clicked") do
     nova_tarefa = { 
       concluida: false, 
       texto: texto, 
-      data: data.empty? ? "Sem data" : data,
+      data: data,
       categoria: categoria,
       prioridade: prioridade
     }
@@ -267,7 +284,6 @@ botao_adicionar.signal_connect("clicked") do
     atualizar_status(tarefas, barra_status, contexto_id)
     
     entrada.text = "" # Limpa o campo após adicionar
-    entrada_data.text = "" # Limpa o campo de data
   end
 end
 
@@ -491,6 +507,25 @@ renderer_concluida.signal_connect("toggled") do |renderer, path|
     salvar_tarefas(tarefas)
     atualizar_status(tarefas, barra_status, contexto_id)
   end
+end
+
+# Evento para trocar a cor do tema
+botao_cor.signal_connect("color-set") do
+  cor = botao_cor.color
+  css = <<-CSS
+    * {
+      background-color: ##{cor.to_s[1..-1]};
+    }
+  CSS
+  provider = Gtk::CssProvider.new
+  provider.load_from_data(css)
+  Gtk::StyleContext.add_provider_for_screen(Gdk::Screen.default, provider, Gtk::StyleProvider::PRIORITY_USER)
+end
+
+# Verificar tarefas próximas periodicamente
+GLib::Timeout.add_seconds(3600) do # Verificar a cada hora
+  verificar_tarefas_proximas(tarefas)
+  true # Retorna true para continuar o timer
 end
 
 # Adicionar widgets ao layout
