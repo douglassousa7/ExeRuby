@@ -1,0 +1,15 @@
+RELATÓRIO DE TAREFAS
+==================================================
+
+Total de tarefas: 3
+Tarefas concluídas: 3 (100.0%)
+Tarefas pendentes: 0 (0.0%)
+
+TAREFAS POR CATEGORIA
+--------------------------------------------------
+Estudo: 1 (33.3%)
+Outro: 2 (66.7%)
+
+TAREFAS POR PRIORIDADE
+--------------------------------------------------
+Média: 3 (100.0%)
