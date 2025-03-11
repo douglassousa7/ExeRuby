@@ -538,7 +538,7 @@ caixa.pack_start(scrolled_window, expand: true, fill: true, padding: 5)
 caixa.pack_start(botoes_box, expand: false, fill: false, padding: 5)
 caixa.pack_start(barra_status, expand: false, fill: false, padding: 0)
 
-# Adicionar layout à janela e exibir
+# Adicionar layout à janela e exibir.
 janela.add(caixa)
 janela.show_all
 Gtk.main
