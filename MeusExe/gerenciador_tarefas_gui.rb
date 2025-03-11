@@ -79,6 +79,7 @@ end
 # Campo de entrada de texto
 entrada = Gtk::Entry.new
 entrada.placeholder_text = "Digite a nova tarefa"
+entrada.set_width_chars(30)  # Define o campo para exibir 30 caracteres
 
 # Calendário para selecionar data
 calendario = Gtk::Calendar.new
@@ -264,7 +265,8 @@ end
 botao_adicionar.signal_connect("clicked") do
   texto = entrada.text.strip
   data_selecionada = calendario.date
-  data = "#{data_selecionada.year}-#{data_selecionada.month}-#{data_selecionada.day}"
+  ano, mes, dia = data_selecionada
+  data = "#{ano}-#{mes + 1}-#{dia}"  # Corrigido: O mês no GTK começa de 0 (janeiro = 0)
   categoria = combo_categoria.active_text
   prioridade = combo_prioridade.active_text
   

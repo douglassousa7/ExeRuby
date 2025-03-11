@@ -1,3 +1,3 @@
 true|Ir ao mercado|18/02/2025 9:00|Outro|Média
-true|Ir trabnalhar|18/02/2024 14h|Outro|Média
 true|Estudar para prova|12/02/2025|Estudo|Média
+true|ir a escola|2025-4-11|Pessoal|Média
