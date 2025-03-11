@@ -2,35 +2,29 @@ require 'gtk3'
 require 'libnotify'
 require 'date'
 
-ARQUIVO_TAREFAS = "tarefas.txt"
-CATEGORIAS = ["Pessoal", "Trabalho", "Estudo", "Compras", "Outro"]
+class GerenciadorTarefas
+  ARQUIVO_TAREFAS = "tarefas.txt"
+  CATEGORIAS = ["Pessoal", "Trabalho", "Estudo", "Compras", "Outro"]
+  PRIORIDADES = ["Alta", "Média", "Baixa"]
 
-# Função para carregar as tarefas do arquivo
-def carregar_tarefas
-  begin
-    if File.exist?(ARQUIVO_TAREFAS)
-      File.readlines(ARQUIVO_TAREFAS).map do |linha|
-        concluida, texto, data, categoria, prioridade = linha.chomp.split("|")
-        { 
-          concluida: concluida == "true", 
-          texto: texto, 
-          data: data, 
-          categoria: categoria || "Outro",
-          prioridade: prioridade || "Média"
-        }
-      end
-    else
+  def self.carregar_tarefas
+    return [] unless File.exist?(ARQUIVO_TAREFAS)
+    File.readlines(ARQUIVO_TAREFAS, chomp: true).map do |linha|
+      concluida, texto, data, categoria, prioridade = linha.split("|")
+      {
+        concluida: concluida == "true",
+        texto: texto,
+        data: data,
+        categoria: categoria || "Outro",
+        prioridade: prioridade || "Média"
+      }
+    rescue => e
+      puts "Erro ao carregar tarefas: #{e.message}"
       []
     end
-  rescue => e
-    puts "Erro ao carregar tarefas: #{e.message}"
-    []
   end
-end
 
-# Função para salvar as tarefas no arquivo
-def salvar_tarefas(tarefas)
-  begin
+  def self.salvar_tarefas(tarefas)
     File.open(ARQUIVO_TAREFAS, "w") do |file|
       tarefas.each do |tarefa|
         file.puts("#{tarefa[:concluida]}|#{tarefa[:texto]}|#{tarefa[:data]}|#{tarefa[:categoria]}|#{tarefa[:prioridade]}")
@@ -39,506 +33,404 @@ def salvar_tarefas(tarefas)
   rescue => e
     puts "Erro ao salvar tarefas: #{e.message}"
   end
-end
 
-# Função para verificar tarefas próximas e exibir notificações
-def verificar_tarefas_proximas(tarefas)
-  hoje = Date.today
-  tarefas.each do |tarefa|
-    data_tarefa = Date.parse(tarefa[:data]) rescue nil
-    if data_tarefa && (data_tarefa - hoje).to_i <= 2 # Notificar se a tarefa estiver próxima (2 dias ou menos)
-      Libnotify.show(
-        summary: "Tarefa Próxima: #{tarefa[:texto]}",
-        body: "Data: #{tarefa[:data]}\nCategoria: #{tarefa[:categoria]}\nPrioridade: #{tarefa[:prioridade]}",
-        timeout: 5 # Tempo em segundos para a notificação desaparecer
-      )
+  def self.verificar_tarefas_proximas(tarefas)
+    hoje = Date.today
+    tarefas.each do |tarefa|
+      next unless tarefa[:data]
+      data_tarefa = Date.parse(tarefa[:data]) rescue next
+      if (data_tarefa - hoje).to_i <= 2
+        Libnotify.show(
+          summary: "Tarefa Próxima: #{tarefa[:texto]}",
+          body: "Data: #{tarefa[:data]}\nCategoria: #{tarefa[:categoria]}\nPrioridade: #{tarefa[:prioridade]}",
+          timeout: 5
+        )
+      end
     end
   end
 end
 
-# Criar janela principal
-janela = Gtk::Window.new("Gerenciador de Tarefas")
-janela.set_size_request(700, 500)
-janela.signal_connect("destroy") { Gtk.main_quit }
-
-# Layout vertical
-caixa = Gtk::Box.new(:vertical, 10)
-caixa.set_border_width(10)
-
-# Barra de status
-barra_status = Gtk::Statusbar.new
-contexto_id = barra_status.get_context_id("info")
-
-# Função para atualizar a barra de status
-def atualizar_status(tarefas, barra_status, contexto_id)
-  total = tarefas.size
-  concluidas = tarefas.count { |t| t[:concluida] }
-  barra_status.push(contexto_id, "Total: #{total} | Concluídas: #{concluidas} | Pendentes: #{total - concluidas}")
-end
-
-# Campo de entrada de texto
-entrada = Gtk::Entry.new
-entrada.placeholder_text = "Digite a nova tarefa"
-entrada.set_width_chars(30)  # Define o campo para exibir 30 caracteres
-
-# Calendário para selecionar data
-calendario = Gtk::Calendar.new
-calendario.show_day_names = true
-calendario.show_heading = true
-calendario.mark_day(Time.now.day) # Marcar o dia atual
-
-# Combobox para categorias
-combo_categoria = Gtk::ComboBoxText.new
-CATEGORIAS.each { |cat| combo_categoria.append_text(cat) }
-combo_categoria.active = 0
-
-# Combobox para prioridade
-combo_prioridade = Gtk::ComboBoxText.new
-["Alta", "Média", "Baixa"].each { |p| combo_prioridade.append_text(p) }
-combo_prioridade.active = 1
-
-# Layout horizontal para o formulário de entrada
-form_box = Gtk::Box.new(:horizontal, 5)
-form_box.pack_start(entrada, expand: true, fill: true, padding: 5)
-form_box.pack_start(calendario, expand: false, fill: false, padding: 5)
-form_box.pack_start(Gtk::Label.new("Categoria:"), expand: false, fill: false, padding: 5)
-form_box.pack_start(combo_categoria, expand: false, fill: false, padding: 5)
-form_box.pack_start(Gtk::Label.new("Prioridade:"), expand: false, fill: false, padding: 5)
-form_box.pack_start(combo_prioridade, expand: false, fill: false, padding: 5)
-
-# Botão para adicionar tarefa
-botao_adicionar = Gtk::Button.new(label: "Adicionar Tarefa")
-
-# Lista de tarefas (com Scroll)
-modelo_lista = Gtk::ListStore.new(TrueClass, String, String, String, String)
-lista_tarefas = Gtk::TreeView.new(modelo_lista)
-
-# Coluna para checkboxes (tarefas concluídas)
-renderer_concluida = Gtk::CellRendererToggle.new
-coluna_concluida = Gtk::TreeViewColumn.new("Concluída", renderer_concluida, active: 0)
-lista_tarefas.append_column(coluna_concluida)
-
-# Coluna para o texto da tarefa
-renderer_texto = Gtk::CellRendererText.new
-coluna_texto = Gtk::TreeViewColumn.new("Tarefa", renderer_texto)
-coluna_texto.set_cell_data_func(renderer_texto) do |column, cell, model, iter|
-  cell.text = iter[1]
-  cell.strikethrough = iter[0] # Riscar texto se a tarefa estiver concluída
-end
-lista_tarefas.append_column(coluna_texto)
-
-# Coluna para a data e hora
-renderer_data = Gtk::CellRendererText.new
-coluna_data = Gtk::TreeViewColumn.new("Data/Hora", renderer_data, text: 2)
-lista_tarefas.append_column(coluna_data)
-
-# Coluna para a categoria
-renderer_categoria = Gtk::CellRendererText.new
-coluna_categoria = Gtk::TreeViewColumn.new("Categoria", renderer_categoria, text: 3)
-lista_tarefas.append_column(coluna_categoria)
-
-# Coluna para a prioridade
-renderer_prioridade = Gtk::CellRendererText.new
-coluna_prioridade = Gtk::TreeViewColumn.new("Prioridade", renderer_prioridade)
-coluna_prioridade.set_cell_data_func(renderer_prioridade) do |column, cell, model, iter|
-  prioridade = iter[4]
-  cell.text = prioridade
-  case prioridade
-  when "Alta"
-    cell.foreground = "red"
-  when "Média"
-    cell.foreground = "blue"
-  when "Baixa"
-    cell.foreground = "green"
-  else
-    cell.foreground = "black"
+class InterfaceGrafica
+  def initialize
+    @tarefas = GerenciadorTarefas.carregar_tarefas
+    setup_ui
+    carregar_tarefas_na_lista
+    configurar_eventos
+    iniciar_verificacao_periodica
+    @janela.show_all
+    Gtk.main
   end
-end
-lista_tarefas.append_column(coluna_prioridade)
 
-# Box para os controles de filtragem
-filtro_box = Gtk::Box.new(:horizontal, 5)
+  private
 
-# Combobox para filtrar por categoria
-label_filtro_categoria = Gtk::Label.new("Filtrar por Categoria:")
-combo_filtro_categoria = Gtk::ComboBoxText.new
-combo_filtro_categoria.append_text("Todas")
-CATEGORIAS.each { |cat| combo_filtro_categoria.append_text(cat) }
-combo_filtro_categoria.active = 0
+  def setup_ui
+    @janela = Gtk::Window.new("Gerenciador de Tarefas")
+    @janela.set_size_request(700, 500)
+    @janela.signal_connect("destroy") { Gtk.main_quit }
 
-# Combobox para filtrar por status
-label_filtro_status = Gtk::Label.new("Filtrar por Status:")
-combo_filtro_status = Gtk::ComboBoxText.new
-["Todas", "Concluídas", "Pendentes"].each { |s| combo_filtro_status.append_text(s) }
-combo_filtro_status.active = 0
+    @caixa = Gtk::Box.new(:vertical, 10)
+    @caixa.set_border_width(10)
+    @janela.add(@caixa)
 
-# Campo de pesquisa
-entrada_pesquisa = Gtk::Entry.new
-entrada_pesquisa.placeholder_text = "Pesquisar tarefas..."
+    criar_barra_status
+    criar_formulario_entrada
+    criar_lista_tarefas
+    criar_filtros
+    criar_botoes_acao
+  end
 
-# Botão para aplicar filtros
-botao_filtrar = Gtk::Button.new(label: "Aplicar Filtros")
+  def criar_barra_status
+    @barra_status = Gtk::Statusbar.new
+    @contexto_id = @barra_status.get_context_id("info")
+    @caixa.pack_start(@barra_status, expand: false, fill: false, padding: 0)
+  end
 
-# Adicionar controles de filtragem ao box
-filtro_box.pack_start(label_filtro_categoria, expand: false, fill: false, padding: 5)
-filtro_box.pack_start(combo_filtro_categoria, expand: false, fill: false, padding: 5)
-filtro_box.pack_start(label_filtro_status, expand: false, fill: false, padding: 5)
-filtro_box.pack_start(combo_filtro_status, expand: false, fill: false, padding: 5)
-filtro_box.pack_start(entrada_pesquisa, expand: true, fill: true, padding: 5)
-filtro_box.pack_start(botao_filtrar, expand: false, fill: false, padding: 5)
+  def criar_formulario_entrada
+    @entrada = Gtk::Entry.new
+    @entrada.placeholder_text = "Digite a nova tarefa"
+    @calendario = Gtk::Calendar.new
+    @calendario.mark_day(Time.now.day)
 
-# Adicionar Scroll à lista de tarefas
-scrolled_window = Gtk::ScrolledWindow.new
-scrolled_window.set_policy(:automatic, :automatic) # Barras de rolagem automáticas
-scrolled_window.add(lista_tarefas)
+    @combo_categoria = Gtk::ComboBoxText.new
+    GerenciadorTarefas::CATEGORIAS.each { |cat| @combo_categoria.append_text(cat) }
+    @combo_categoria.active = 0
 
-# Box horizontal para botões de ação
-botoes_box = Gtk::Box.new(:horizontal, 5)
+    @combo_prioridade = Gtk::ComboBoxText.new
+    GerenciadorTarefas::PRIORIDADES.each { |p| @combo_prioridade.append_text(p) }
+    @combo_prioridade.active = 1
 
-# Botão para remover tarefa
-botao_remover = Gtk::Button.new(label: "Remover Selecionada")
+    @botao_adicionar = Gtk::Button.new(label: "Adicionar Tarefa")
 
-# Botão para editar tarefa
-botao_editar = Gtk::Button.new(label: "Editar Tarefa")
-
-# Botão para gerar relatório
-botao_relatorio = Gtk::Button.new(label: "Gerar Relatório")
-
-# Botão para escolher a cor do tema
-botao_cor = Gtk::ColorButton.new
-botao_cor.title = "Escolha a cor do tema"
-
-# Adicionar botões ao box
-botoes_box.pack_start(botao_remover, expand: true, fill: true, padding: 5)
-botoes_box.pack_start(botao_editar, expand: true, fill: true, padding: 5)
-botoes_box.pack_start(botao_relatorio, expand: true, fill: true, padding: 5)
-botoes_box.pack_start(botao_cor, expand: true, fill: true, padding: 5)
-
-# Variável para armazenar todas as tarefas
-tarefas = carregar_tarefas
-
-# Função para atualizar a lista na interface
-def atualizar_lista(modelo_lista, tarefas, filtro_categoria = "Todas", filtro_status = "Todas", termo_pesquisa = "")
-  modelo_lista.clear
-  
-  tarefas_filtradas = tarefas.select do |tarefa|
-    categoria_ok = filtro_categoria == "Todas" || tarefa[:categoria] == filtro_categoria
-    status_ok = case filtro_status
-                when "Concluídas"
-                  tarefa[:concluida]
-                when "Pendentes"
-                  !tarefa[:concluida]
-                else
-                  true
-                end
-    pesquisa_ok = termo_pesquisa.empty? || 
-                 tarefa[:texto].downcase.include?(termo_pesquisa.downcase) ||
-                 tarefa[:categoria].downcase.include?(termo_pesquisa.downcase)
+    form_box = Gtk::Box.new(:horizontal, 5)
+    form_box.pack_start(@entrada, expand: true, fill: true, padding: 5)
+    form_box.pack_start(@calendario, expand: false, fill: false, padding: 5)
+    form_box.pack_start(Gtk::Label.new("Categoria:"), expand: false, fill: false, padding: 5)
+    form_box.pack_start(@combo_categoria, expand: false, fill: false, padding: 5)
+    form_box.pack_start(Gtk::Label.new("Prioridade:"), expand: false, fill: false, padding: 5)
+    form_box.pack_start(@combo_prioridade, expand: false, fill: false, padding: 5)
     
-    categoria_ok && status_ok && pesquisa_ok
+    @caixa.pack_start(form_box, expand: false, fill: false, padding: 5)
+    @caixa.pack_start(@botao_adicionar, expand: false, fill: false, padding: 5)
   end
-  
-  tarefas_filtradas.each do |tarefa|
-    iter = modelo_lista.append
-    iter[0] = tarefa[:concluida]
-    iter[1] = tarefa[:texto]
-    iter[2] = tarefa[:data]
-    iter[3] = tarefa[:categoria]
-    iter[4] = tarefa[:prioridade]
+
+  def criar_lista_tarefas
+    @modelo_lista = Gtk::ListStore.new(TrueClass, String, String, String, String)
+    @lista_tarefas = Gtk::TreeView.new(@modelo_lista)
+
+    renderer_concluida = Gtk::CellRendererToggle.new
+    renderer_concluida.signal_connect("toggled") do |renderer, path|
+      iter = @modelo_lista.get_iter(path)
+      iter[0] = !iter[0]
+      tarefa_index = @tarefas.index { |t| t[:texto] == iter[1] }
+      if tarefa_index
+        @tarefas[tarefa_index][:concluida] = iter[0]
+        GerenciadorTarefas.salvar_tarefas(@tarefas)
+        atualizar_status
+      end
+    end
+    coluna_concluida = Gtk::TreeViewColumn.new("Concluída", renderer_concluida, active: 0)
+    @lista_tarefas.append_column(coluna_concluida)
+
+    renderer_texto = Gtk::CellRendererText.new
+    coluna_texto = Gtk::TreeViewColumn.new("Tarefa", renderer_texto)
+    coluna_texto.set_cell_data_func(renderer_texto) do |column, cell, model, iter|
+      cell.text = iter[1]
+      cell.strikethrough = iter[0]
+    end
+    @lista_tarefas.append_column(coluna_texto)
+
+    %w[Data/Hora Categoria Prioridade].each_with_index do |titulo, i|
+      renderer = Gtk::CellRendererText.new
+      coluna = Gtk::TreeViewColumn.new(titulo, renderer, text: i + 2)
+      @lista_tarefas.append_column(coluna)
+    end
+
+    scrolled_window = Gtk::ScrolledWindow.new
+    scrolled_window.set_policy(:automatic, :automatic)
+    scrolled_window.add(@lista_tarefas)
+    @caixa.pack_start(scrolled_window, expand: true, fill: true, padding: 5)
   end
-end
 
-# Carregar tarefas na lista
-atualizar_lista(modelo_lista, tarefas)
-atualizar_status(tarefas, barra_status, contexto_id)
+  def criar_filtros
+    @combo_filtro_categoria = Gtk::ComboBoxText.new
+    @combo_filtro_categoria.append_text("Todas")
+    GerenciadorTarefas::CATEGORIAS.each { |cat| @combo_filtro_categoria.append_text(cat) }
+    @combo_filtro_categoria.active = 0
 
-# Evento para aplicar filtros
-botao_filtrar.signal_connect("clicked") do
-  filtro_categoria = combo_filtro_categoria.active_text
-  filtro_status = combo_filtro_status.active_text
-  termo_pesquisa = entrada_pesquisa.text
-  
-  atualizar_lista(modelo_lista, tarefas, filtro_categoria, filtro_status, termo_pesquisa)
-end
+    @combo_filtro_status = Gtk::ComboBoxText.new
+    ["Todas", "Concluídas", "Pendentes"].each { |s| @combo_filtro_status.append_text(s) }
+    @combo_filtro_status.active = 0
 
-# Evento para adicionar tarefa
-botao_adicionar.signal_connect("clicked") do
-  texto = entrada.text.strip
-  data_selecionada = calendario.date
-  ano, mes, dia = data_selecionada
-  data = "#{ano}-#{mes + 1}-#{dia}"  # Corrigido: O mês no GTK começa de 0 (janeiro = 0)
-  categoria = combo_categoria.active_text
-  prioridade = combo_prioridade.active_text
-  
-  unless texto.empty?
-    nova_tarefa = { 
-      concluida: false, 
-      texto: texto, 
+    @entrada_pesquisa = Gtk::Entry.new
+    @entrada_pesquisa.placeholder_text = "Pesquisar tarefas..."
+    @botao_filtrar = Gtk::Button.new(label: "Aplicar Filtros")
+
+    filtro_box = Gtk::Box.new(:horizontal, 5)
+    filtro_box.pack_start(Gtk::Label.new("Categoria:"), expand: false, fill: false, padding: 5)
+    filtro_box.pack_start(@combo_filtro_categoria, expand: false, fill: false, padding: 5)
+    filtro_box.pack_start(Gtk::Label.new("Status:"), expand: false, fill: false, padding: 5)
+    filtro_box.pack_start(@combo_filtro_status, expand: false, fill: false, padding: 5)
+    filtro_box.pack_start(@entrada_pesquisa, expand: true, fill: true, padding: 5)
+    filtro_box.pack_start(@botao_filtrar, expand: false, fill: false, padding: 5)
+    
+    @caixa.pack_start(filtro_box, expand: false, fill: false, padding: 5)
+  end
+
+  def criar_botoes_acao
+    @botao_remover = Gtk::Button.new(label: "Remover Selecionada")
+    @botao_editar = Gtk::Button.new(label: "Editar Tarefa")
+    @botao_relatorio = Gtk::Button.new(label: "Gerar Relatório")
+
+    botoes_box = Gtk::Box.new(:horizontal, 5)
+    [@botao_remover, @botao_editar, @botao_relatorio].each do |botao|
+      botoes_box.pack_start(botao, expand: true, fill: true, padding: 5)
+    end
+    
+    @caixa.pack_start(botoes_box, expand: false, fill: false, padding: 5)
+  end
+
+  def carregar_tarefas_na_lista
+    @modelo_lista.clear
+    @tarefas.each do |tarefa|
+      iter = @modelo_lista.append
+      iter[0] = tarefa[:concluida]
+      iter[1] = tarefa[:texto]
+      iter[2] = tarefa[:data]
+      iter[3] = tarefa[:categoria]
+      iter[4] = tarefa[:prioridade]
+    end
+    atualizar_status
+  end
+
+  def atualizar_status
+    total = @tarefas.size
+    concluidas = @tarefas.count { |t| t[:concluida] }
+    @barra_status.push(@contexto_id, "Total: #{total} | Concluídas: #{concluidas} | Pendentes: #{total - concluidas}")
+  end
+
+  def configurar_eventos
+    @botao_adicionar.signal_connect("clicked") { adicionar_tarefa }
+    @botao_remover.signal_connect("clicked") { remover_tarefa }
+    @botao_editar.signal_connect("clicked") { editar_tarefa }
+    @botao_relatorio.signal_connect("clicked") { gerar_relatorio }
+    @botao_filtrar.signal_connect("clicked") { aplicar_filtros }
+  end
+
+  def adicionar_tarefa
+    texto = @entrada.text.strip
+    return if texto.empty?
+
+    ano, mes, dia = @calendario.date
+    data = "#{ano}-#{mes + 1}-#{dia}"
+    nova_tarefa = {
+      concluida: false,
+      texto: texto,
       data: data,
-      categoria: categoria,
-      prioridade: prioridade
+      categoria: @combo_categoria.active_text,
+      prioridade: @combo_prioridade.active_text
     }
     
-    tarefas << nova_tarefa
-    salvar_tarefas(tarefas)
-    atualizar_lista(modelo_lista, tarefas, combo_filtro_categoria.active_text, 
-                    combo_filtro_status.active_text, entrada_pesquisa.text)
-    atualizar_status(tarefas, barra_status, contexto_id)
-    
-    entrada.text = "" # Limpa o campo após adicionar
+    @tarefas << nova_tarefa
+    GerenciadorTarefas.salvar_tarefas(@tarefas)
+    carregar_tarefas_na_lista
+    @entrada.text = ""
   end
-end
 
-# Evento para remover tarefa
-botao_remover.signal_connect("clicked") do
-  selecionado = lista_tarefas.selection.selected
-  if selecionado
-    tarefa_texto = selecionado[1]
-    dialog = Gtk::MessageDialog.new(parent: janela,
-                                    flags: :modal,
-                                    type: :question,
-                                    buttons: :yes_no,
-                                    message: "Tem certeza que deseja remover a tarefa: #{tarefa_texto}?")
-    resposta = dialog.run
-    if resposta == Gtk::ResponseType::YES
-      tarefas.delete_if { |t| t[:texto] == tarefa_texto }
-      salvar_tarefas(tarefas)
-      atualizar_lista(modelo_lista, tarefas, combo_filtro_categoria.active_text, 
-                      combo_filtro_status.active_text, entrada_pesquisa.text)
-      atualizar_status(tarefas, barra_status, contexto_id)
+  def remover_tarefa
+    selecionado = @lista_tarefas.selection.selected
+    return unless selecionado
+
+    dialog = Gtk::MessageDialog.new(
+      parent: @janela,
+      flags: :modal,
+      type: :question,
+      buttons: :yes_no,
+      message: "Tem certeza que deseja remover a tarefa: #{selecionado[1]}?"
+    )
+    
+    if dialog.run == Gtk::ResponseType::YES
+      @tarefas.delete_if { |t| t[:texto] == selecionado[1] }
+      GerenciadorTarefas.salvar_tarefas(@tarefas)
+      carregar_tarefas_na_lista
     end
     dialog.destroy
   end
-end
 
-# Evento para editar tarefa
-botao_editar.signal_connect("clicked") do
-  selecionado = lista_tarefas.selection.selected
-  if selecionado
-    tarefa_texto = selecionado[1]
-    tarefa_data = selecionado[2]
-    tarefa_categoria = selecionado[3]
-    tarefa_prioridade = selecionado[4]
+  def editar_tarefa
+    selecionado = @lista_tarefas.selection.selected
+    return unless selecionado
     
-    # Criar dialog para edição
+    dialog = criar_dialogo_edicao(selecionado)
+    return unless dialog.run == Gtk::ResponseType::OK
+
+    atualizar_tarefa_selecionada(selecionado, dialog)
+    dialog.destroy
+  end
+
+  def criar_dialogo_edicao(selecionado)
     dialog = Gtk::Dialog.new(
       title: "Editar Tarefa",
-      parent: janela,
+      parent: @janela,
       flags: :modal,
       buttons: [["Cancelar", Gtk::ResponseType::CANCEL], ["Salvar", Gtk::ResponseType::OK]]
     )
     
-    # Criar campos do formulário
     entrada_edicao = Gtk::Entry.new
-    entrada_edicao.text = tarefa_texto
+    entrada_edicao.text = selecionado[1]
+    entrada_data = Gtk::Entry.new
+    entrada_data.text = selecionado[2]
     
-    entrada_edicao_data = Gtk::Entry.new
-    entrada_edicao_data.text = tarefa_data
-    
-    combo_edicao_categoria = Gtk::ComboBoxText.new
-    CATEGORIAS.each_with_index do |cat, i|
-      combo_edicao_categoria.append_text(cat)
-      combo_edicao_categoria.active = i if cat == tarefa_categoria
+    combo_categoria = Gtk::ComboBoxText.new
+    GerenciadorTarefas::CATEGORIAS.each_with_index do |cat, i|
+      combo_categoria.append_text(cat)
+      combo_categoria.active = i if cat == selecionado[3]
     end
     
-    combo_edicao_prioridade = Gtk::ComboBoxText.new
-    ["Alta", "Média", "Baixa"].each_with_index do |p, i|
-      combo_edicao_prioridade.append_text(p)
-      combo_edicao_prioridade.active = i if p == tarefa_prioridade
+    combo_prioridade = Gtk::ComboBoxText.new
+    GerenciadorTarefas::PRIORIDADES.each_with_index do |p, i|
+      combo_prioridade.append_text(p)
+      combo_prioridade.active = i if p == selecionado[4]
     end
     
-    # Criar grid para organizar os campos
     grid = Gtk::Grid.new
     grid.set_column_spacing(10)
     grid.set_row_spacing(10)
-    grid.set_margin_top(20)
-    grid.set_margin_bottom(20)
-    grid.set_margin_start(20)
-    grid.set_margin_end(20)
+    grid.set_margin(20)
     
-    # Adicionar rótulos e campos ao grid
     grid.attach(Gtk::Label.new("Tarefa:"), 0, 0, 1, 1)
     grid.attach(entrada_edicao, 1, 0, 1, 1)
-    
-    grid.attach(Gtk::Label.new("Data/Hora:"), 0, 1, 1, 1)
-    grid.attach(entrada_edicao_data, 1, 1, 1, 1)
-    
+    grid.attach(Gtk::Label.new("Data:"), 0, 1, 1, 1)
+    grid.attach(entrada_data, 1, 1, 1, 1)
     grid.attach(Gtk::Label.new("Categoria:"), 0, 2, 1, 1)
-    grid.attach(combo_edicao_categoria, 1, 2, 1, 1)
-    
+    grid.attach(combo_categoria, 1, 2, 1, 1)
     grid.attach(Gtk::Label.new("Prioridade:"), 0, 3, 1, 1)
-    grid.attach(combo_edicao_prioridade, 1, 3, 1, 1)
+    grid.attach(combo_prioridade, 1, 3, 1, 1)
     
-    # Adicionar grid ao diálogo
-    box = dialog.content_area
-    box.add(grid)
+    dialog.content_area.add(grid)
+    dialog.show_all
+    dialog
+  end
+
+  def atualizar_tarefa_selecionada(selecionado, dialog)
+    novo_texto = dialog.children[0].children[0].children[1].text.strip
+    return if novo_texto.empty?
+    
+    tarefa_index = @tarefas.index { |t| t[:texto] == selecionado[1] }
+    return unless tarefa_index
+    
+    @tarefas[tarefa_index][:texto] = novo_texto
+    @tarefas[tarefa_index][:data] = dialog.children[0].children[2].children[1].text
+    @tarefas[tarefa_index][:categoria] = dialog.children[0].children[4].active_text
+    @tarefas[tarefa_index][:prioridade] = dialog.children[0].children[6].active_text
+    
+    GerenciadorTarefas.salvar_tarefas(@tarefas)
+    carregar_tarefas_na_lista
+  end
+
+  def gerar_relatorio
+    dialog = Gtk::Dialog.new(
+      title: "Relatório de Tarefas",
+      parent: @janela,
+      flags: :modal,
+      buttons: [["Fechar", Gtk::ResponseType::CLOSE]]
+    )
+    dialog.set_size_request(400, 300)
+    
+    buffer = Gtk::TextBuffer.new
+    buffer.text = gerar_texto_relatorio
+    
+    area_texto = Gtk::TextView.new(buffer: buffer)
+    area_texto.editable = false
+    
+    scrolled = Gtk::ScrolledWindow.new
+    scrolled.set_policy(:automatic, :automatic)
+    scrolled.add(area_texto)
+    
+    botao_exportar = Gtk::Button.new(label: "Exportar Relatório")
+    botao_exportar.signal_connect("clicked") { exportar_relatorio(buffer.text) }
+    
+    dialog.content_area.pack_start(scrolled, expand: true, fill: true, padding: 10)
+    dialog.content_area.pack_start(botao_exportar, expand: false, fill: false, padding: 10)
     
     dialog.show_all
-    resposta = dialog.run
-    
-    if resposta == Gtk::ResponseType::OK
-      novo_texto = entrada_edicao.text.strip
-      nova_data = entrada_edicao_data.text.strip
-      nova_categoria = combo_edicao_categoria.active_text
-      nova_prioridade = combo_edicao_prioridade.active_text
-      
-      unless novo_texto.empty?
-        # Atualizar a tarefa na lista de tarefas
-        tarefa_index = tarefas.index { |t| t[:texto] == tarefa_texto }
-        if tarefa_index
-          tarefas[tarefa_index][:texto] = novo_texto
-          tarefas[tarefa_index][:data] = nova_data.empty? ? "Sem data" : nova_data
-          tarefas[tarefa_index][:categoria] = nova_categoria
-          tarefas[tarefa_index][:prioridade] = nova_prioridade
-          
-          salvar_tarefas(tarefas)
-          atualizar_lista(modelo_lista, tarefas, combo_filtro_categoria.active_text, 
-                          combo_filtro_status.active_text, entrada_pesquisa.text)
-        end
-      end
-    end
-    
+    dialog.run
     dialog.destroy
   end
-end
 
-# Evento para gerar relatório
-botao_relatorio.signal_connect("clicked") do
-  dialog = Gtk::Dialog.new(
-    title: "Relatório de Tarefas",
-    parent: janela,
-    flags: :modal,
-    buttons: [["Fechar", Gtk::ResponseType::CLOSE]]
-  )
-  dialog.set_size_request(400, 300)
-  
-  # Criar área de texto para o relatório
-  area_texto = Gtk::TextView.new
-  area_texto.editable = false
-  area_texto.cursor_visible = false
-  buffer = area_texto.buffer
-  
-  # Preparar o relatório
-  buffer.text = "RELATÓRIO DE TAREFAS\n"
-  buffer.text += "=" * 50 + "\n\n"
-  
-  total = tarefas.size
-  concluidas = tarefas.count { |t| t[:concluida] }
-  pendentes = total - concluidas
-  
-  if total > 0
-    buffer.text += "Total de tarefas: #{total}\n"
-    buffer.text += "Tarefas concluídas: #{concluidas} (#{(concluidas.to_f / total * 100).round(1)}%)\n"
-    buffer.text += "Tarefas pendentes: #{pendentes} (#{(pendentes.to_f / total * 100).round(1)}%)\n\n"
+  def gerar_texto_relatorio
+    total = @tarefas.size
+    concluidas = @tarefas.count { |t| t[:concluida] }
+    pendentes = total - concluidas
     
-    # Estatísticas por categoria
-    buffer.text += "TAREFAS POR CATEGORIA\n"
-    buffer.text += "-" * 50 + "\n"
+    texto = "RELATÓRIO DE TAREFAS\n#{"=" * 50}\n\n"
+    return texto + "Não há tarefas cadastradas." if total.zero?
     
-    categorias_contagem = {}
-    CATEGORIAS.each { |cat| categorias_contagem[cat] = 0 }
+    texto += "Total de tarefas: #{total}\n"
+    texto += "Tarefas concluídas: #{concluidas} (#{(concluidas.to_f / total * 100).round(1)}%)\n"
+    texto += "Tarefas pendentes: #{pendentes} (#{(pendentes.to_f / total * 100).round(1)}%)\n\n"
     
-    tarefas.each do |tarefa|
-      categorias_contagem[tarefa[:categoria]] += 1
-    end
-    
-    categorias_contagem.each do |categoria, contagem|
-      next if contagem == 0
+    texto += "TAREFAS POR CATEGORIA\n#{"-" * 50}\n"
+    GerenciadorTarefas::CATEGORIAS.each do |cat|
+      contagem = @tarefas.count { |t| t[:categoria] == cat }
+      next if contagem.zero?
       percentual = (contagem.to_f / total * 100).round(1)
-      buffer.text += "#{categoria}: #{contagem} (#{percentual}%)\n"
+      texto += "#{cat}: #{contagem} (#{percentual}%)\n"
     end
     
-    buffer.text += "\nTAREFAS POR PRIORIDADE\n"
-    buffer.text += "-" * 50 + "\n"
-    
-    prioridades_contagem = {"Alta" => 0, "Média" => 0, "Baixa" => 0}
-    tarefas.each do |tarefa|
-      prioridades_contagem[tarefa[:prioridade]] += 1
-    end
-    
-    prioridades_contagem.each do |prioridade, contagem|
-      next if contagem == 0
+    texto += "\nTAREFAS POR PRIORIDADE\n#{"-" * 50}\n"
+    GerenciadorTarefas::PRIORIDADES.each do |prio|
+      contagem = @tarefas.count { |t| t[:prioridade] == prio }
+      next if contagem.zero?
       percentual = (contagem.to_f / total * 100).round(1)
-      buffer.text += "#{prioridade}: #{contagem} (#{percentual}%)\n"
+      texto += "#{prio}: #{contagem} (#{percentual}%)\n"
     end
-  else
-    buffer.text += "Não há tarefas cadastradas."
+    texto
   end
-  
-  # Adicionar área de texto com scroll
-  scrolled = Gtk::ScrolledWindow.new
-  scrolled.set_policy(:automatic, :automatic)
-  scrolled.add(area_texto)
-  
-  # Adicionar botão para exportar relatório
-  botao_exportar = Gtk::Button.new(label: "Exportar Relatório")
-  botao_exportar.signal_connect("clicked") do
-    arquivo_relatorio = "relatorio_tarefas_#{Time.now.strftime('%Y%m%d_%H%M%S')}.txt"
-    File.write(arquivo_relatorio, buffer.text)
+
+  def exportar_relatorio(texto)
+    arquivo = "relatorio_tarefas_#{Time.now.strftime('%Y%m%d_%H%M%S')}.txt"
+    File.write(arquivo, texto)
+    
     mensagem = Gtk::MessageDialog.new(
-      parent: dialog,
+      parent: @janela,
       flags: :modal,
       type: :info,
       buttons: :ok,
-      message: "Relatório exportado para #{arquivo_relatorio}"
+      message: "Relatório exportado para #{arquivo}"
     )
     mensagem.run
     mensagem.destroy
   end
-  
-  # Adicionar widgets ao diálogo
-  box = dialog.content_area
-  box.pack_start(scrolled, expand: true, fill: true, padding: 10)
-  box.pack_start(botao_exportar, expand: false, fill: false, padding: 10)
-  
-  dialog.show_all
-  dialog.run
-  dialog.destroy
-end
 
-# Evento para marcar/desmarcar tarefa como concluída
-renderer_concluida.signal_connect("toggled") do |renderer, path|
-  iter = modelo_lista.get_iter(path)
-  iter[0] = !iter[0] # Alterna entre true/false
-  
-  tarefa_texto = iter[1]
-  tarefa_index = tarefas.index { |t| t[:texto] == tarefa_texto }
-  
-  if tarefa_index
-    tarefas[tarefa_index][:concluida] = iter[0]
-    salvar_tarefas(tarefas)
-    atualizar_status(tarefas, barra_status, contexto_id)
+  def aplicar_filtros
+    filtro_categoria = @combo_filtro_categoria.active_text
+    filtro_status = @combo_filtro_status.active_text
+    termo_pesquisa = @entrada_pesquisa.text.downcase
+    
+    @modelo_lista.clear
+    @tarefas.each do |tarefa|
+      next unless filtro_categoria == "Todas" || tarefa[:categoria] == filtro_categoria
+      next if filtro_status == "Concluídas" && !tarefa[:concluida]
+      next if filtro_status == "Pendentes" && tarefa[:concluida]
+      next unless termo_pesquisa.empty? || 
+                 tarefa[:texto].downcase.include?(termo_pesquisa) || 
+                 tarefa[:categoria].downcase.include?(termo_pesquisa)
+                 
+      iter = @modelo_lista.append
+      iter[0] = tarefa[:concluida]
+      iter[1] = tarefa[:texto]
+      iter[2] = tarefa[:data]
+      iter[3] = tarefa[:categoria]
+      iter[4] = tarefa[:prioridade]
+    end
+  end
+
+  def iniciar_verificacao_periodica
+    GLib::Timeout.add_seconds(3600) do
+      GerenciadorTarefas.verificar_tarefas_proximas(@tarefas)
+      true
+    end
   end
 end
 
-# Evento para trocar a cor do tema
-botao_cor.signal_connect("color-set") do
-  cor = botao_cor.color
-  css = <<-CSS
-    * {
-      background-color: ##{cor.to_s[1..-1]};
-    }
-  CSS
-  provider = Gtk::CssProvider.new
-  provider.load_from_data(css)
-  Gtk::StyleContext.add_provider_for_screen(Gdk::Screen.default, provider, Gtk::StyleProvider::PRIORITY_USER)
-end
-
-# Verificar tarefas próximas periodicamente
-GLib::Timeout.add_seconds(3600) do # Verificar a cada hora
-  verificar_tarefas_proximas(tarefas)
-  true # Retorna true para continuar o timer
-end
-
-# Adicionar widgets ao layout
-caixa.pack_start(form_box, expand: false, fill: false, padding: 5)
-caixa.pack_start(botao_adicionar, expand: false, fill: false, padding: 5)
-caixa.pack_start(filtro_box, expand: false, fill: false, padding: 5)
-caixa.pack_start(scrolled_window, expand: true, fill: true, padding: 5)
-caixa.pack_start(botoes_box, expand: false, fill: false, padding: 5)
-caixa.pack_start(barra_status, expand: false, fill: false, padding: 0)
-
-# Adicionar layout à janela e exibir.
-janela.add(caixa)
-janela.show_all
-Gtk.main
+InterfaceGrafica.new
